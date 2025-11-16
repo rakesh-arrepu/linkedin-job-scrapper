@@ -60,8 +60,14 @@ class LinkedInScraper:
                 logger.error("Failed to load search page")
                 return []
 
-            # Wait for job listings to load
+            # Wait for page to load
             time.sleep(3)
+
+            # Handle any popups that might block scrolling
+            self._handle_popups()
+
+            # Wait for job listings to load
+            time.sleep(2)
 
             # Scrape jobs across pages
             jobs_scraped = 0
@@ -69,6 +75,10 @@ class LinkedInScraper:
 
             while jobs_scraped < search_params.max_jobs:
                 logger.info(f"Scraping page {page_num + 1}...")
+
+                # Scroll to load more jobs and handle popups
+                if page_num > 0 or jobs_scraped > 0:
+                    self._scroll_to_load_more_jobs()
 
                 # Get job cards on current page
                 job_cards = self._get_job_cards()
@@ -114,6 +124,77 @@ class LinkedInScraper:
 
         finally:
             self.browser.close()
+
+    def _handle_popups(self):
+        """Detect and close LinkedIn popups that might block interaction."""
+        try:
+            logger.debug("Checking for popups...")
+
+            # Common LinkedIn popup selectors
+            popup_selectors = [
+                # Sign-in modal
+                'button[data-tracking-control-name*="public_jobs_contextual-sign-in-modal_modal_dismiss"]',
+                'button[aria-label="Dismiss"]',
+                'button.modal__dismiss',
+
+                # Cookie consent
+                'button[action-type="ACCEPT"]',
+                'button.artdeco-global-alert-action',
+
+                # Generic close buttons
+                'button[data-test-modal-close-btn]',
+                '.modal button[aria-label*="lose"]',
+                '.artdeco-modal__dismiss',
+
+                # Sign-in prompts
+                '.contextual-sign-in-modal__modal-dismiss',
+                'button[data-tracking-control-name="public_jobs_contextual-sign-in-modal_modal_dismiss"]'
+            ]
+
+            popups_closed = 0
+            for selector in popup_selectors:
+                try:
+                    elements = self.browser.driver.find_elements(By.CSS_SELECTOR, selector)
+                    for element in elements:
+                        if element.is_displayed() and element.is_enabled():
+                            element.click()
+                            popups_closed += 1
+                            logger.info(f"Closed popup: {selector}")
+                            time.sleep(0.5)
+                except:
+                    continue
+
+            if popups_closed > 0:
+                logger.info(f"Closed {popups_closed} popup(s)")
+                time.sleep(1)  # Wait for popups to fully close
+            else:
+                logger.debug("No popups detected")
+
+        except Exception as e:
+            logger.warning(f"Error handling popups (non-critical): {e}")
+
+    def _scroll_to_load_more_jobs(self):
+        """Scroll down the page to load more job listings."""
+        try:
+            logger.debug("Scrolling to load more jobs...")
+
+            # Close any popups before scrolling
+            self._handle_popups()
+
+            # Scroll down in increments
+            for i in range(3):
+                self.browser.driver.execute_script("window.scrollBy(0, 800);")
+                time.sleep(0.5)
+
+                # Check for and close popups that might appear during scroll
+                self._handle_popups()
+
+            # Scroll back up a bit
+            self.browser.driver.execute_script("window.scrollBy(0, -400);")
+            time.sleep(0.5)
+
+        except Exception as e:
+            logger.warning(f"Error during scroll (non-critical): {e}")
 
     def _get_job_cards(self) -> List:
         """
