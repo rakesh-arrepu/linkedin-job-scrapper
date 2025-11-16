@@ -1,8 +1,11 @@
+# Python 3.13+ compatibility
+setuptools>=68.0.0
+
 # Core Scraping
 selenium>=4.15.0
 undetected-chromedriver>=3.5.5
 beautifulsoup4>=4.12.0
-lxml>=4.9.0
+lxml>=5.0.0
 
 # Data Handling
 pandas>=2.1.0

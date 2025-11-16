@@ -2,8 +2,9 @@
 
 A powerful, feature-rich Python tool to scrape LinkedIn job postings and generate beautiful, detailed reports in PDF, CSV, and JSON formats.
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8%20|%203.13-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.13 Compatible](https://img.shields.io/badge/python%203.13-compatible-brightgreen.svg)](https://www.python.org/downloads/)
 
 ## ✨ Features
 
@@ -30,44 +31,50 @@ A powerful, feature-rich Python tool to scrape LinkedIn job postings and generat
 - [Troubleshooting](#-troubleshooting)
 - [Contributing](#-contributing)
 
+## 📚 Documentation
+
+- **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
+- **[INSTALL.md](INSTALL.md)** - Detailed installation guide
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
+- **[API.md](docs/API.md)** - Programmatic usage
+- **[DOCKER.md](docs/DOCKER.md)** - Docker deployment
+
 ## 🛠️ Installation
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.8 or higher (Python 3.13 supported ✅)
 - Chrome browser (ChromeDriver will be auto-downloaded)
 
-### Step 1: Clone the Repository
+### Quick Install
 
 ```bash
+# Clone the repository
 git clone https://github.com/yourusername/linkedin-job-scrapper.git
 cd linkedin-job-scrapper
-```
 
-### Step 2: Create Virtual Environment (Recommended)
-
-```bash
-# On Linux/MacOS
+# Create virtual environment
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# On Windows
-python -m venv venv
-venv\Scripts\activate
+# Install dependencies
+pip install -r requirements.txt
+
+# Verify installation
+python test_setup.py
 ```
 
-### Step 3: Install Dependencies
+### ⚠️ Python 3.13+ Users
+
+If you get `ModuleNotFoundError: No module named 'distutils'`:
 
 ```bash
+# Install setuptools first (already in requirements.txt)
+pip install setuptools>=68.0.0
 pip install -r requirements.txt
 ```
 
-### Step 4: Configure Environment (Optional)
-
-```bash
-cp .env.example .env
-# Edit .env file with your preferences
-```
+**See [INSTALL.md](INSTALL.md) for detailed installation instructions and troubleshooting.**
 
 ## 🚀 Quick Start
 
@@ -317,51 +324,46 @@ linkedin-job-scrapper/
 
 ## 🐛 Troubleshooting
 
-### Issue: ChromeDriver Not Found
+### Common Issues
 
-**Solution**: The script automatically downloads ChromeDriver. If it fails:
+#### ❌ `ModuleNotFoundError: No module named 'distutils'` (Python 3.13+)
+
 ```bash
-# Manually install Chrome browser
-# The script will handle ChromeDriver
+pip install setuptools>=68.0.0
+pip install -r requirements.txt
 ```
 
-### Issue: No Jobs Found
+#### ❌ ChromeDriver Not Found
 
-**Solutions**:
-1. Broaden your search criteria
-2. Remove strict filters (experience, job type)
-3. Try different keywords
-4. Check if LinkedIn is accessible in your region
+The script automatically downloads ChromeDriver. Ensure Chrome browser is installed from https://www.google.com/chrome/
 
-### Issue: Bot Detection / CAPTCHA
+#### ❌ No Jobs Found
 
-**Solutions**:
-1. Increase delays in `.env`:
-   ```env
-   MIN_DELAY=5
-   MAX_DELAY=10
-   ```
-2. Use `--no-headless` mode to solve CAPTCHA manually
-3. Reduce `max-jobs` count
-4. Use VPN if IP is blocked
+- Broaden your search keywords
+- Remove strict filters
+- Try different location formats
+- Check if LinkedIn is accessible in your region
 
-### Issue: Selenium Errors
+#### ❌ Bot Detection / CAPTCHA
 
-**Solutions**:
 ```bash
-# Update Chrome browser to latest version
-# Reinstall selenium and undetected-chromedriver
-pip install --upgrade selenium undetected-chromedriver
+# Increase delays in .env
+MIN_DELAY=5
+MAX_DELAY=10
+
+# Or use non-headless mode
+python main.py -k "Developer" --no-headless
 ```
 
-### Issue: Import Errors
+### More Help
 
-**Solution**:
-```bash
-# Ensure you're in the project root directory
-# Reinstall dependencies
-pip install -r requirements.txt --force-reinstall
-```
+See **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** for comprehensive troubleshooting guide including:
+- Installation issues
+- Import errors
+- Runtime errors
+- Scraping issues
+- Export problems
+- Advanced diagnostics
 
 ## 🔍 Tips for Best Results
 

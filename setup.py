@@ -28,13 +28,15 @@ setup(
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
     ],
     python_requires='>=3.8',
     install_requires=[
+        'setuptools>=68.0.0',  # Required for Python 3.12+
         'selenium>=4.15.0',
         'undetected-chromedriver>=3.5.5',
         'beautifulsoup4>=4.12.0',
-        'lxml>=4.9.0',
+        'lxml>=5.0.0',
         'pandas>=2.1.0',
         'pydantic>=2.5.0',
         'pydantic-settings>=2.1.0',
