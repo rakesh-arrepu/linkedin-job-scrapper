@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  linkedin-scraper:
+    build: .
+    container_name: linkedin-job-scraper
+    volumes:
+      # Mount output directory to persist results
+      - ./output:/app/output
+      # Mount .env file if it exists
+      - ./.env:/app/.env:ro
+    environment:
+      - HEADLESS_MODE=true
+      - OUTPUT_DIR=/app/output
+    # Override command as needed
+    # Example: command: ["-k", "Python Developer", "-l", "Remote", "-m", "50"]
+    command: ["--help"]
