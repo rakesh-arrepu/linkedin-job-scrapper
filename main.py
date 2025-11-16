@@ -19,7 +19,6 @@ from rich import box
 from config.settings import settings
 from src.models.job import SearchParameters
 from src.scraper.linkedin_scraper import LinkedInScraper
-from src.scraper.linkedin_api_scraper import LinkedInAPIScraper
 from src.exporters.pdf_exporter import PDFExporter
 from src.exporters.csv_exporter import CSVExporter
 from src.exporters.json_exporter import JSONExporter
@@ -107,11 +106,6 @@ def print_banner():
     is_flag=True,
     help='Enable verbose logging'
 )
-@click.option(
-    '--scraper',
-    type=click.Choice(['api', 'selenium'], case_sensitive=False),
-    help='Scraper method to use (overrides .env setting). API is faster & more reliable.'
-)
 def main(
     keywords: str,
     location: str,
@@ -124,8 +118,7 @@ def main(
     format: str,
     headless: bool,
     enrich: bool,
-    verbose: bool,
-    scraper: Optional[str]
+    verbose: bool
 ):
     """
     LinkedIn Job Scraper - Find and export job listings from LinkedIn.
@@ -166,15 +159,9 @@ def main(
         # Display search info
         _display_search_info(search_params)
 
-        # Initialize scraper based on configuration (CLI overrides .env)
-        scraper_method = scraper.lower() if scraper else settings.scraper_method.lower()
-
-        if scraper_method == 'api':
-            console.print(f"[cyan]Using API-based scraper (faster & more reliable)[/cyan]\n")
-            job_scraper = LinkedInAPIScraper()
-        else:
-            console.print(f"[cyan]Using Selenium-based scraper (browser automation)[/cyan]\n")
-            job_scraper = LinkedInScraper(headless=headless)
+        # Initialize Selenium-based scraper
+        console.print(f"[cyan]Using Selenium-based scraper (browser automation)[/cyan]\n")
+        job_scraper = LinkedInScraper(headless=headless)
 
         # Scrape jobs with progress bar
         jobs = []
@@ -199,8 +186,8 @@ def main(
 
         console.print(f"\n[green]✅ Successfully scraped {len(jobs)} jobs![/green]")
 
-        # Enrich jobs if requested (only available with Selenium scraper)
-        if enrich and scraper_method == 'selenium':
+        # Enrich jobs if requested
+        if enrich:
             console.print("\n[cyan]Enriching job details...[/cyan]")
             with Progress(
                 SpinnerColumn(),
@@ -215,8 +202,6 @@ def main(
                     progress.update(task, advance=1)
 
             console.print("[green]✅ Enrichment complete![/green]")
-        elif enrich and scraper_method == 'api':
-            console.print("[yellow]ℹ️  Enrichment not needed with API scraper (already includes detailed data)[/yellow]")
 
         # Display job summary
         _display_job_summary(jobs)

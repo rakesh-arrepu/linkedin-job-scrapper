@@ -45,16 +45,6 @@ class Settings(BaseSettings):
     linkedin_email: Optional[str] = None
     linkedin_password: Optional[str] = None
 
-    # Scraper Method Configuration
-    scraper_method: str = "api"  # 'selenium' or 'api'
-
-    # API Configuration
-    rapidapi_key: Optional[str] = None
-    rapidapi_host: str = "linkedin-data-api.p.rapidapi.com"
-    jsearch_api_key: Optional[str] = None
-    jsearch_api_host: str = "jsearch.p.rapidapi.com"
-    linkedin_api_key: Optional[str] = None
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Create output directory if it doesn't exist

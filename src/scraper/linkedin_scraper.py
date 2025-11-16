@@ -39,6 +39,12 @@ class LinkedInScraper:
         """
         Scrape jobs based on search parameters.
 
+        New workflow:
+        1. Collect all job links from search pages
+        2. Open each link in a separate tab sequentially
+        3. Extract job info from each tab
+        4. Store and return all jobs
+
         Args:
             search_params: Search parameters
 
@@ -55,6 +61,48 @@ class LinkedInScraper:
             search_url = search_params.build_url()
             logger.info(f"Search URL: {search_url}")
 
+            # Step 1: Collect all job links from search pages
+            logger.info("Step 1: Collecting all job links from search pages...")
+            job_links = self._collect_all_job_links(search_url, search_params.max_jobs)
+
+            if not job_links:
+                logger.warning("No job links found")
+                return []
+
+            logger.info(f"Found {len(job_links)} job links")
+
+            # Step 2 & 3: Open each link in a separate tab and extract job info
+            logger.info("Step 2: Opening each job link in separate tabs and extracting data...")
+            jobs = self._scrape_jobs_from_links(job_links)
+
+            logger.info(f"Scraping complete! Total jobs scraped: {len(jobs)}")
+            self.jobs = jobs
+            return jobs
+
+        except Exception as e:
+            logger.error(f"Scraping failed: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            return self.jobs
+
+        finally:
+            self.browser.close()
+
+    def _collect_all_job_links(self, search_url: str, max_jobs: int) -> List[str]:
+        """
+        Collect all job links from search result pages.
+
+        Args:
+            search_url: LinkedIn search URL
+            max_jobs: Maximum number of job links to collect
+
+        Returns:
+            List of job URLs
+        """
+        all_job_links = []
+        page_num = 0
+
+        try:
             # Navigate to search page
             if not self.browser.get(search_url):
                 logger.error("Failed to load search page")
@@ -69,62 +117,181 @@ class LinkedInScraper:
             # Wait for job listings to load
             time.sleep(2)
 
-            # Scrape jobs across pages
-            jobs_scraped = 0
-            page_num = 0
-
-            while jobs_scraped < search_params.max_jobs:
-                logger.info(f"Scraping page {page_num + 1}...")
+            while len(all_job_links) < max_jobs:
+                logger.info(f"Collecting links from page {page_num + 1}...")
 
                 # Scroll to load more jobs and handle popups
-                if page_num > 0 or jobs_scraped > 0:
-                    self._scroll_to_load_more_jobs()
-
-                # Get job cards on current page
-                job_cards = self._get_job_cards()
-
-                if not job_cards:
-                    logger.warning("No job cards found on page")
-                    break
-
-                # Process each job card - now clicking into each job for detailed data
-                for card_idx, card in enumerate(job_cards):
-                    if jobs_scraped >= search_params.max_jobs:
-                        break
-
-                    try:
-                        # Click into the job to get detailed information
-                        job = self._click_and_extract_job(card, card_idx)
-                        if job:
-                            self.jobs.append(job)
-                            jobs_scraped += 1
-                            logger.info(f"Scraped job {jobs_scraped}/{search_params.max_jobs}: {job.title} at {job.company}")
-
-                        # Rate limiting
-                        self.rate_limiter.wait()
-
-                    except Exception as e:
-                        logger.error(f"Error extracting job: {e}")
-                        continue
-
-                # Check if we need to go to next page
-                if jobs_scraped < search_params.max_jobs:
-                    if not self._go_to_next_page():
-                        logger.info("No more pages available")
-                        break
-
-                    page_num += 1
+                if page_num > 0:
                     time.sleep(2)
 
-            logger.info(f"Scraping complete! Total jobs scraped: {len(self.jobs)}")
-            return self.jobs
+                self._scroll_to_load_more_jobs()
+
+                # Get job links on current page
+                page_links = self._extract_job_links_from_page()
+
+                if not page_links:
+                    logger.warning("No job links found on page")
+                    break
+
+                # Add new links (avoid duplicates)
+                for link in page_links:
+                    if link not in all_job_links and len(all_job_links) < max_jobs:
+                        all_job_links.append(link)
+                        logger.debug(f"Added job link {len(all_job_links)}/{max_jobs}: {link}")
+
+                logger.info(f"Collected {len(all_job_links)} links so far")
+
+                # Check if we have enough links
+                if len(all_job_links) >= max_jobs:
+                    break
+
+                # Go to next page
+                if not self._go_to_next_page():
+                    logger.info("No more pages available")
+                    break
+
+                page_num += 1
+                time.sleep(2)
+
+            return all_job_links[:max_jobs]
 
         except Exception as e:
-            logger.error(f"Scraping failed: {e}")
-            return self.jobs
+            logger.error(f"Error collecting job links: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            return all_job_links
 
-        finally:
-            self.browser.close()
+    def _extract_job_links_from_page(self) -> List[str]:
+        """
+        Extract all job links from the current search results page.
+
+        Returns:
+            List of job URLs
+        """
+        job_links = []
+
+        try:
+            # Multiple selectors for job cards
+            card_selectors = [
+                "div.job-search-card",
+                "div.base-card",
+                "li.jobs-search-results__list-item",
+                "div.jobs-search__results-list li"
+            ]
+
+            cards = []
+            for selector in card_selectors:
+                try:
+                    cards = self.browser.driver.find_elements(By.CSS_SELECTOR, selector)
+                    if cards:
+                        logger.debug(f"Found {len(cards)} job cards using selector: {selector}")
+                        break
+                except:
+                    continue
+
+            if not cards:
+                logger.warning("Could not find job cards with any selector")
+                return []
+
+            # Extract links from each card
+            for card in cards:
+                try:
+                    # Find job link in card
+                    link_elem = card.find_element(By.CSS_SELECTOR, 'a[href*="/jobs/view/"]')
+                    job_link = link_elem.get_attribute('href')
+
+                    if job_link:
+                        # Clean URL
+                        if not job_link.startswith('http'):
+                            job_link = f"https://www.linkedin.com{job_link}"
+
+                        # Remove tracking parameters
+                        job_link = job_link.split('?')[0]
+
+                        job_links.append(job_link)
+
+                except Exception as e:
+                    logger.debug(f"Could not extract link from card: {e}")
+                    continue
+
+            logger.debug(f"Extracted {len(job_links)} job links from current page")
+            return job_links
+
+        except Exception as e:
+            logger.error(f"Error extracting job links from page: {e}")
+            return job_links
+
+    def _scrape_jobs_from_links(self, job_links: List[str]) -> List[Job]:
+        """
+        Open each job link in a separate tab and extract job information.
+
+        Args:
+            job_links: List of job URLs to scrape
+
+        Returns:
+            List of Job objects
+        """
+        jobs = []
+
+        try:
+            # Store the main window handle
+            main_window = self.browser.driver.current_window_handle
+
+            for idx, job_link in enumerate(job_links):
+                try:
+                    logger.info(f"Processing job {idx + 1}/{len(job_links)}: {job_link}")
+
+                    # Open job link in a new tab
+                    self.browser.driver.execute_script(f"window.open('{job_link}', '_blank');")
+
+                    # Switch to the new tab
+                    all_windows = self.browser.driver.window_handles
+                    new_tab = all_windows[-1]
+                    self.browser.driver.switch_to.window(new_tab)
+
+                    # Wait for page to load
+                    time.sleep(3)
+
+                    # Handle popups
+                    self._handle_popups()
+
+                    # Extract job data from the tab
+                    job = self._extract_detailed_job_data(job_link)
+
+                    if job:
+                        jobs.append(job)
+                        logger.info(f"Successfully scraped: {job.title} at {job.company}")
+                    else:
+                        logger.warning(f"Could not extract job data from: {job_link}")
+
+                    # Close the current tab
+                    self.browser.driver.close()
+
+                    # Switch back to main window
+                    self.browser.driver.switch_to.window(main_window)
+
+                    # Rate limiting
+                    self.rate_limiter.wait()
+
+                except Exception as e:
+                    logger.error(f"Error processing job link {job_link}: {e}")
+
+                    # Try to close tab and switch back to main window
+                    try:
+                        self.browser.driver.close()
+                        self.browser.driver.switch_to.window(main_window)
+                    except:
+                        pass
+
+                    continue
+
+            return jobs
+
+        except Exception as e:
+            logger.error(f"Error scraping jobs from links: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            return jobs
 
     def _handle_popups(self):
         """Detect and close LinkedIn popups that might block interaction."""
@@ -196,175 +363,6 @@ class LinkedInScraper:
 
         except Exception as e:
             logger.warning(f"Error during scroll (non-critical): {e}")
-
-    def _get_job_cards(self) -> List:
-        """
-        Get all job card elements on current page.
-
-        Returns:
-            List of job card web elements
-        """
-        try:
-            # Wait for job listings container
-            time.sleep(2)
-
-            # Multiple selectors as LinkedIn changes them frequently
-            selectors = [
-                "div.job-search-card",
-                "div.base-card",
-                "li.jobs-search-results__list-item",
-                "div.jobs-search__results-list li"
-            ]
-
-            for selector in selectors:
-                try:
-                    cards = self.browser.driver.find_elements(By.CSS_SELECTOR, selector)
-                    if cards:
-                        logger.debug(f"Found {len(cards)} job cards using selector: {selector}")
-                        return cards
-                except:
-                    continue
-
-            logger.warning("Could not find job cards with any selector")
-            return []
-
-        except Exception as e:
-            logger.error(f"Error getting job cards: {e}")
-            return []
-
-    def _click_and_extract_job(self, card, card_idx: int) -> Optional[Job]:
-        """
-        Click on a job card and extract detailed information from the job detail page.
-
-        Args:
-            card: Job card web element
-            card_idx: Index of the card in the list
-
-        Returns:
-            Job object with detailed information or None
-        """
-        try:
-            # First, extract basic info from the card to identify the job
-            job_link = None
-            try:
-                # Try to find the job link in the card
-                link_elem = card.find_element(By.CSS_SELECTOR, 'a[href*="/jobs/view/"]')
-                job_link = link_elem.get_attribute('href')
-            except:
-                logger.warning(f"Could not find job link in card {card_idx}")
-                return None
-
-            if not job_link:
-                return None
-
-            # Clean URL
-            if not job_link.startswith('http'):
-                job_link = f"https://www.linkedin.com{job_link}"
-
-            # Click on the job card to load details in the side panel
-            # LinkedIn shows details in a right panel when you click a job
-            try:
-                link_elem.click()
-                time.sleep(2)  # Wait for details panel to load
-
-                # Handle any popups that might appear after clicking
-                self._handle_popups()
-
-            except Exception as e:
-                logger.warning(f"Could not click job card, trying direct navigation: {e}")
-                # If clicking fails, navigate directly to the job URL
-                if not self.browser.get(job_link):
-                    return None
-                time.sleep(2)
-
-            # Extract detailed information from the job detail view
-            job = self._extract_detailed_job_data(job_link)
-
-            return job
-
-        except Exception as e:
-            logger.error(f"Error clicking and extracting job {card_idx}: {e}")
-            return None
-
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    def _extract_job_from_card(self, card) -> Optional[Job]:
-        """
-        Extract job information from a job card element.
-
-        Args:
-            card: Job card web element
-
-        Returns:
-            Job object or None
-        """
-        try:
-            # Get HTML content
-            html = card.get_attribute('outerHTML')
-            soup = BeautifulSoup(html, 'lxml')
-
-            # Extract job title
-            title_elem = soup.select_one('h3, .base-search-card__title, .job-search-card__title')
-            title = title_elem.get_text(strip=True) if title_elem else "Unknown Title"
-
-            # Extract company name
-            company_elem = soup.select_one('h4, .base-search-card__subtitle, .job-search-card__company-name')
-            company = company_elem.get_text(strip=True) if company_elem else "Unknown Company"
-
-            # Extract location
-            location_elem = soup.select_one('.job-search-card__location, .base-search-card__metadata')
-            location = location_elem.get_text(strip=True) if location_elem else "Unknown Location"
-
-            # Extract job URL
-            link_elem = soup.select_one('a[href*="/jobs/view/"]')
-            job_url = link_elem['href'] if link_elem and 'href' in link_elem.attrs else ""
-
-            # Clean and validate URL
-            if job_url:
-                if not job_url.startswith('http'):
-                    job_url = f"https://www.linkedin.com{job_url}"
-                # Extract job ID
-                job_id = self._extract_job_id(job_url)
-            else:
-                logger.warning(f"No URL found for job: {title}")
-                return None
-
-            # Extract posted date
-            posted_elem = soup.select_one('time, .job-search-card__listdate')
-            posted_date = posted_elem.get_text(strip=True) if posted_elem else None
-            if not posted_date:
-                # Try datetime attribute
-                posted_elem = soup.select_one('time[datetime]')
-                posted_date = posted_elem['datetime'] if posted_elem and 'datetime' in posted_elem.attrs else None
-
-            # Extract employment type (if available in listing)
-            employment_type = None
-            metadata = soup.select('.job-search-card__metadata-item')
-            for meta in metadata:
-                text = meta.get_text(strip=True)
-                if any(word in text.lower() for word in ['full-time', 'part-time', 'contract', 'internship']):
-                    employment_type = text
-                    break
-
-            # Create Job object
-            job = Job(
-                title=title,
-                company=company,
-                location=location,
-                job_url=job_url,
-                job_id=job_id,
-                posted_date=posted_date,
-                employment_type=employment_type
-            )
-
-            return job
-
-        except StaleElementReferenceException:
-            logger.warning("Stale element, retrying...")
-            raise  # Retry decorator will handle this
-
-        except Exception as e:
-            logger.error(f"Error extracting job data: {e}")
-            return None
 
     def _extract_job_id(self, url: str) -> Optional[str]:
         """
