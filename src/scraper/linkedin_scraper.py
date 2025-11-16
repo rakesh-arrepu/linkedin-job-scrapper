@@ -164,6 +164,7 @@ class LinkedInScraper:
     def _extract_job_links_from_page(self) -> List[str]:
         """
         Extract all job links from the current search results page.
+        Uses multiple fallback strategies for robust link extraction.
 
         Returns:
             List of job URLs
@@ -171,12 +172,59 @@ class LinkedInScraper:
         job_links = []
 
         try:
-            # Multiple selectors for job cards
+            # Strategy 1: Try direct link selectors first (most reliable)
+            link_selectors = [
+                'a[href*="/jobs/view/"]',
+                'a.base-card__full-link',
+                'a.job-card-list__title',
+                'a.job-card-container__link'
+            ]
+
+            for selector in link_selectors:
+                try:
+                    link_elements = self.browser.driver.find_elements(By.CSS_SELECTOR, selector)
+                    if link_elements:
+                        logger.debug(f"Found {len(link_elements)} job links using selector: {selector}")
+
+                        for link_elem in link_elements:
+                            try:
+                                job_link = link_elem.get_attribute('href')
+
+                                if job_link and '/jobs/view/' in job_link:
+                                    # Clean URL
+                                    if not job_link.startswith('http'):
+                                        job_link = f"https://www.linkedin.com{job_link}"
+
+                                    # Remove tracking parameters
+                                    job_link = job_link.split('?')[0]
+
+                                    # Avoid duplicates
+                                    if job_link not in job_links:
+                                        job_links.append(job_link)
+                                        logger.debug(f"Extracted job link: {job_link}")
+
+                            except Exception as e:
+                                logger.debug(f"Could not get href from link element: {e}")
+                                continue
+
+                        # If we found links with this selector, return them
+                        if job_links:
+                            logger.info(f"Successfully extracted {len(job_links)} job links from page")
+                            return job_links
+
+                except Exception as e:
+                    logger.debug(f"Selector {selector} failed: {e}")
+                    continue
+
+            # Strategy 2: Fallback to card-based extraction if direct links failed
+            logger.debug("Direct link extraction failed, trying card-based approach...")
+
             card_selectors = [
                 "div.job-search-card",
                 "div.base-card",
                 "li.jobs-search-results__list-item",
-                "div.jobs-search__results-list li"
+                "div.jobs-search__results-list li",
+                "ul.jobs-search__results-list > li"
             ]
 
             cards = []
@@ -191,34 +239,68 @@ class LinkedInScraper:
 
             if not cards:
                 logger.warning("Could not find job cards with any selector")
+                # Save page source for debugging
+                self._save_debug_html("no_cards_found")
                 return []
 
             # Extract links from each card
-            for card in cards:
+            for idx, card in enumerate(cards):
                 try:
-                    # Find job link in card
-                    link_elem = card.find_element(By.CSS_SELECTOR, 'a[href*="/jobs/view/"]')
-                    job_link = link_elem.get_attribute('href')
+                    # Try multiple link selectors within the card
+                    card_link_selectors = [
+                        'a[href*="/jobs/view/"]',
+                        'a.base-card__full-link',
+                        'a',  # Last resort: get all links
+                    ]
 
-                    if job_link:
-                        # Clean URL
-                        if not job_link.startswith('http'):
-                            job_link = f"https://www.linkedin.com{job_link}"
+                    for link_selector in card_link_selectors:
+                        try:
+                            link_elems = card.find_elements(By.CSS_SELECTOR, link_selector)
 
-                        # Remove tracking parameters
-                        job_link = job_link.split('?')[0]
+                            for link_elem in link_elems:
+                                job_link = link_elem.get_attribute('href')
 
-                        job_links.append(job_link)
+                                # Only keep links that contain job view URLs
+                                if job_link and '/jobs/view/' in job_link:
+                                    # Clean URL
+                                    if not job_link.startswith('http'):
+                                        job_link = f"https://www.linkedin.com{job_link}"
+
+                                    # Remove tracking parameters
+                                    job_link = job_link.split('?')[0]
+
+                                    # Avoid duplicates
+                                    if job_link not in job_links:
+                                        job_links.append(job_link)
+                                        logger.debug(f"Extracted job link from card {idx + 1}: {job_link}")
+                                        break  # Found a link for this card, move to next card
+
+                            if job_link and '/jobs/view/' in job_link:
+                                break  # Found a link with this selector, try next card
+
+                        except:
+                            continue
+
+                    if not any('/jobs/view/' in str(link) for link in [job_link] if job_link):
+                        logger.debug(f"Could not extract job link from card {idx + 1}")
 
                 except Exception as e:
-                    logger.debug(f"Could not extract link from card: {e}")
+                    logger.debug(f"Error processing card {idx + 1}: {e}")
                     continue
 
-            logger.debug(f"Extracted {len(job_links)} job links from current page")
+            if not job_links:
+                logger.warning("No job links extracted from page with any strategy")
+                # Save page source for debugging
+                self._save_debug_html("no_links_extracted")
+            else:
+                logger.info(f"Extracted {len(job_links)} job links from current page")
+
             return job_links
 
         except Exception as e:
             logger.error(f"Error extracting job links from page: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
             return job_links
 
     def _scrape_jobs_from_links(self, job_links: List[str]) -> List[Job]:
@@ -697,3 +779,29 @@ class LinkedInScraper:
     def clear_jobs(self):
         """Clear scraped jobs list."""
         self.jobs = []
+
+    def _save_debug_html(self, filename_prefix: str):
+        """
+        Save current page HTML for debugging purposes.
+
+        Args:
+            filename_prefix: Prefix for the debug file name
+        """
+        try:
+            import os
+            from datetime import datetime
+
+            debug_dir = settings.output_dir / "debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{filename_prefix}_{timestamp}.html"
+            filepath = debug_dir / filename
+
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(self.browser.driver.page_source)
+
+            logger.info(f"Saved debug HTML to: {filepath}")
+
+        except Exception as e:
+            logger.warning(f"Could not save debug HTML: {e}")
