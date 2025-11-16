@@ -8,16 +8,18 @@ A powerful, feature-rich Python tool to scrape LinkedIn job postings and generat
 
 ## ✨ Features
 
+- ⚡ **Two Scraping Methods**:
+  - **API-based** (Recommended): Fast, reliable, supports multiple jobs, free tier available
+  - **Selenium-based**: Browser automation, no API key needed (limited to 1-2 jobs)
 - 🔍 **Advanced Search Filters**: Keywords, location, date range, experience level, job type, remote options
-- 📊 **Detailed PDF Reports**: Professional reports with charts, statistics, and formatted job listings
+- 📊 **Stunning PDF Reports**: Professional reports with company logos, charts, statistics, and vibrant design
 - 📁 **Multiple Export Formats**: PDF, CSV, and JSON
-- 🎭 **Stealth Mode**: Anti-detection measures using undetected-chromedriver
-- 🌐 **Global Support**: Works across different LinkedIn regions
+- 🎯 **Comprehensive Data**: Full descriptions, skills, salary, applicants, experience level, and more
 - 💻 **Beautiful CLI**: Rich terminal interface with progress bars and colors
-- 🔄 **Pagination Support**: Scrape multiple pages of results
 - 📈 **Job Market Analytics**: Top companies, locations, and skills analysis
 - 🎨 **Customizable**: Configure via environment variables or CLI arguments
-- 🆓 **100% Free**: No API keys or paid services required
+- 🌐 **Global Support**: Works across different LinkedIn regions
+- 🆓 **Free Options Available**: Free API tiers or Selenium mode (limited)
 
 ## 📋 Table of Contents
 
@@ -33,12 +35,12 @@ A powerful, feature-rich Python tool to scrape LinkedIn job postings and generat
 
 ## 📚 Documentation
 
+- **[API_SETUP_GUIDE.md](API_SETUP_GUIDE.md)** - ⭐ Set up API scraping (recommended for multiple jobs)
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
 - **[INSTALL.md](INSTALL.md)** - Detailed installation guide
+- **[IMPROVEMENTS_SUMMARY.md](IMPROVEMENTS_SUMMARY.md)** - Latest features and field availability
 - **[SSL_FIX.md](SSL_FIX.md)** - Fix SSL certificate errors (macOS)
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
-- **[API.md](docs/API.md)** - Programmatic usage
-- **[DOCKER.md](docs/DOCKER.md)** - Docker deployment
 
 ## 🛠️ Installation
 
@@ -86,6 +88,36 @@ python fix_ssl_certificates.py
 **See [INSTALL.md](INSTALL.md) for detailed installation and [SSL_FIX.md](SSL_FIX.md) for SSL troubleshooting.**
 
 ## 🚀 Quick Start
+
+### Choose Your Scraper Method
+
+#### Option 1: API-based (Recommended) ⭐
+
+Fast, reliable, works for multiple jobs. Requires free API key.
+
+```bash
+# 1. Get free API key from: https://rapidapi.com/jsearch/api/jsearch
+# 2. Add to .env file:
+echo "SCRAPER_METHOD=api" >> .env
+echo "JSEARCH_API_KEY=your_key_here" >> .env
+
+# 3. Run scraper
+python main.py -k "Python Developer" -l "Remote" -m 20
+```
+
+**See [API_SETUP_GUIDE.md](API_SETUP_GUIDE.md) for detailed setup instructions.**
+
+#### Option 2: Selenium-based (Free, Limited)
+
+No API key needed, but limited to 1-2 jobs due to LinkedIn restrictions.
+
+```bash
+# Configure in .env
+echo "SCRAPER_METHOD=selenium" >> .env
+
+# Run scraper
+python main.py -k "Python Developer" --scraper selenium -m 5
+```
 
 ### Basic Search
 
