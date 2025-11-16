@@ -26,7 +26,15 @@ def test_imports():
 
     try:
         import selenium
-        print(f"✅ selenium ({selenium.__version__})")
+        try:
+            version = selenium.__version__
+        except AttributeError:
+            from importlib.metadata import version as get_version
+            try:
+                version = get_version('selenium')
+            except:
+                version = "installed"
+        print(f"✅ selenium ({version})")
         tests_passed += 1
     except ImportError as e:
         print(f"❌ selenium - {e}")
@@ -50,7 +58,17 @@ def test_imports():
 
     try:
         import lxml
-        print(f"✅ lxml ({lxml.__version__})")
+        try:
+            from lxml import etree
+            version = etree.LXML_VERSION
+            version_str = ".".join(map(str, version))
+        except:
+            from importlib.metadata import version as get_version
+            try:
+                version_str = get_version('lxml')
+            except:
+                version_str = "installed"
+        print(f"✅ lxml ({version_str})")
         tests_passed += 1
     except ImportError as e:
         print(f"❌ lxml - {e}")
@@ -61,7 +79,15 @@ def test_imports():
 
     try:
         import pandas
-        print(f"✅ pandas ({pandas.__version__})")
+        try:
+            version = pandas.__version__
+        except AttributeError:
+            from importlib.metadata import version as get_version
+            try:
+                version = get_version('pandas')
+            except:
+                version = "installed"
+        print(f"✅ pandas ({version})")
         tests_passed += 1
     except ImportError as e:
         print(f"❌ pandas - {e}")
@@ -69,7 +95,15 @@ def test_imports():
 
     try:
         import pydantic
-        print(f"✅ pydantic ({pydantic.__version__})")
+        try:
+            version = pydantic.__version__
+        except AttributeError:
+            from importlib.metadata import version as get_version
+            try:
+                version = get_version('pydantic')
+            except:
+                version = "installed"
+        print(f"✅ pydantic ({version})")
         tests_passed += 1
     except ImportError as e:
         print(f"❌ pydantic - {e}")
@@ -80,7 +114,15 @@ def test_imports():
 
     try:
         import reportlab
-        print(f"✅ reportlab ({reportlab.Version})")
+        try:
+            version = reportlab.Version
+        except AttributeError:
+            from importlib.metadata import version as get_version
+            try:
+                version = get_version('reportlab')
+            except:
+                version = "installed"
+        print(f"✅ reportlab ({version})")
         tests_passed += 1
     except ImportError as e:
         print(f"❌ reportlab - {e}")
@@ -88,7 +130,15 @@ def test_imports():
 
     try:
         import matplotlib
-        print(f"✅ matplotlib ({matplotlib.__version__})")
+        try:
+            version = matplotlib.__version__
+        except AttributeError:
+            from importlib.metadata import version as get_version
+            try:
+                version = get_version('matplotlib')
+            except:
+                version = "installed"
+        print(f"✅ matplotlib ({version})")
         tests_passed += 1
     except ImportError as e:
         print(f"❌ matplotlib - {e}")
@@ -99,7 +149,15 @@ def test_imports():
 
     try:
         import click
-        print(f"✅ click ({click.__version__})")
+        try:
+            version = click.__version__
+        except AttributeError:
+            from importlib.metadata import version as get_version
+            try:
+                version = get_version('click')
+            except:
+                version = "installed"
+        print(f"✅ click ({version})")
         tests_passed += 1
     except ImportError as e:
         print(f"❌ click - {e}")
@@ -107,7 +165,16 @@ def test_imports():
 
     try:
         import rich
-        print(f"✅ rich ({rich.__version__})")
+        try:
+            version = rich.__version__
+        except AttributeError:
+            # rich doesn't expose __version__ directly
+            from importlib.metadata import version as get_version
+            try:
+                version = get_version('rich')
+            except:
+                version = "installed"
+        print(f"✅ rich ({version})")
         tests_passed += 1
     except ImportError as e:
         print(f"❌ rich - {e}")
