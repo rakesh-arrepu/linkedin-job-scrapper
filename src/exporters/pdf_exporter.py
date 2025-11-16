@@ -518,12 +518,12 @@ class PDFExporter:
 
         return elements
 
-    def _get_company_logo(self, company_name: str) -> Image:
+    def _get_company_logo(self, company_name: str, small: bool = False) -> Image:
         """Fetch company logo from Clearbit API."""
         try:
             # Use Clearbit logo API (free, no API key required)
             # Format company name to domain
-            domain = company_name.lower().replace(' ', '').replace(',', '') + '.com'
+            domain = company_name.lower().replace(' ', '').replace(',', '').replace('inc', '').replace('ltd', '').strip() + '.com'
             logo_url = f"https://logo.clearbit.com/{domain}"
 
             # Download logo
@@ -532,73 +532,134 @@ class PDFExporter:
                 logo_data = response.read()
 
             buf = io.BytesIO(logo_data)
-            return Image(buf, width=0.6*inch, height=0.6*inch)
+
+            # Return smaller logo for inline display
+            if small:
+                return Image(buf, width=0.35*inch, height=0.35*inch)
+            else:
+                return Image(buf, width=0.6*inch, height=0.6*inch)
 
         except:
-            # Return placeholder if logo fetch fails
+            # Return None if logo fetch fails
             return None
 
     def _create_vibrant_job_card(self, job: Job, number: int) -> List:
         """Create a stunning job card with logo, icons, and vibrant colors."""
         elements = []
 
-        # Get company logo
-        logo = self._get_company_logo(job.company)
+        # Get small company logo for inline display
+        logo = self._get_company_logo(job.company, small=True)
 
-        # Card header with company name and logo
+        # Create header row with job title (left), company name (right), and logo (far right)
+        # Job Title on left, Company Name and Logo on right (same line)
+        header_components = []
+
+        # Left side: Job number and title
+        job_title_text = f"<font color='#0A66C2'><b>{number}. {job.title}</b></font>"
+        job_title_para = Paragraph(job_title_text, self.styles['JobTitle'])
+
+        # Right side: Company name and logo
         if logo:
-            header_data = [[logo, Paragraph(f"<b>{job.company}</b>", self.styles['CompanyName'])]]
-            header_table = Table(header_data, colWidths=[0.7*inch, 5.8*inch])
+            # Create company name with logo on the right
+            company_text = f"<font color='#057642'><b>{job.company}</b></font>"
+            company_para = Paragraph(company_text, self.styles['CompanyName'])
+
+            # Header: Job Title | Company + Logo
+            header_data = [[job_title_para, company_para, logo]]
+            header_table = Table(header_data, colWidths=[3.5*inch, 2.4*inch, 0.6*inch])
             header_table.setStyle(TableStyle([
-                ('ALIGN', (0, 0), (0, 0), 'CENTER'),
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),   # Job title left
+                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),  # Company name right
+                ('ALIGN', (2, 0), (2, 0), 'RIGHT'),  # Logo right
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                ('RIGHTPADDING', (0, 0), (1, 0), 5),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
             ]))
-            elements.append(header_table)
         else:
-            company_para = Paragraph(f"{self.ICONS['company']} <b>{job.company}</b>", self.styles['CompanyName'])
-            elements.append(company_para)
+            # No logo available, just company name on right
+            company_text = f"{self.ICONS['company']} <font color='#057642'><b>{job.company}</b></font>"
+            company_para = Paragraph(company_text, self.styles['CompanyName'])
 
-        # Job title with number
-        title_text = f"<b>{number}. {job.title}</b>"
-        title = Paragraph(title_text, self.styles['JobTitle'])
-        elements.append(title)
+            header_data = [[job_title_para, company_para]]
+            header_table = Table(header_data, colWidths=[3.8*inch, 2.7*inch])
+            header_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 0),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ]))
 
-        # Create colorful details table
+        elements.append(header_table)
+        elements.append(Spacer(1, 0.1*inch))
+
+        # Create colorful details table with icons
         details = []
 
+        # Only add rows for fields that have actual data (not N/A)
         # Row 1: Location and Employment Type
-        details.append([
-            Paragraph(f"{self.ICONS['location']} <b>Location:</b> {job.location}", self.styles['JobDetail']),
-            Paragraph(f"{self.ICONS['briefcase']} <b>Type:</b> {job.employment_type or 'N/A'}", self.styles['JobDetail'])
-        ])
+        row1 = []
+        if job.location and job.location != "Location not specified":
+            row1.append(Paragraph(f"{self.ICONS['location']} <b>Location:</b> {job.location}", self.styles['JobDetail']))
+        if job.employment_type:
+            row1.append(Paragraph(f"{self.ICONS['briefcase']} <b>Type:</b> {job.employment_type}", self.styles['JobDetail']))
+
+        if row1:
+            # Ensure we have 2 columns
+            while len(row1) < 2:
+                row1.append("")
+            details.append(row1)
 
         # Row 2: Experience Level and Posted Date
-        details.append([
-            Paragraph(f"{self.ICONS['level']} <b>Level:</b> {job.experience_level or 'N/A'}", self.styles['JobDetail']),
-            Paragraph(f"{self.ICONS['calendar']} <b>Posted:</b> {job.posted_date or 'N/A'}", self.styles['JobDetail'])
-        ])
+        row2 = []
+        if job.experience_level:
+            row2.append(Paragraph(f"{self.ICONS['level']} <b>Level:</b> {job.experience_level}", self.styles['JobDetail']))
+        if job.posted_date:
+            row2.append(Paragraph(f"{self.ICONS['calendar']} <b>Posted:</b> {job.posted_date}", self.styles['JobDetail']))
 
-        # Row 3: Applicants and Salary
-        details.append([
-            Paragraph(f"{self.ICONS['users']} <b>Applicants:</b> {job.applicants_count or 'N/A'}", self.styles['JobDetail']),
-            Paragraph(f"{self.ICONS['money']} <b>Salary:</b> {job.salary_range or 'Not specified'}", self.styles['JobDetail'])
-        ])
+        if row2:
+            while len(row2) < 2:
+                row2.append("")
+            details.append(row2)
 
-        # Row 4: Skills (full width)
-        if job.skills:
+        # Row 3: Applicants and Salary (only if available)
+        row3 = []
+        if job.applicants_count:
+            row3.append(Paragraph(f"{self.ICONS['users']} <b>Applicants:</b> {job.applicants_count}", self.styles['JobDetail']))
+        if job.salary_range:
+            row3.append(Paragraph(f"{self.ICONS['money']} <b>Salary:</b> {job.salary_range}", self.styles['JobDetail']))
+
+        if row3:
+            while len(row3) < 2:
+                row3.append("")
+            details.append(row3)
+
+        # Row: Skills (full width, only if available)
+        if job.skills and len(job.skills) > 0:
             skills_text = ", ".join([f"<b>{s}</b>" for s in job.skills[:8]])
             if len(job.skills) > 8:
                 skills_text += f" <i>(+{len(job.skills) - 8} more)</i>"
-        else:
-            skills_text = "Not specified"
 
-        details.append([
-            Paragraph(f"{self.ICONS['skills']} <b>Skills:</b> {skills_text}", self.styles['JobDetail']),
-            ""
-        ])
+            details.append([
+                Paragraph(f"{self.ICONS['skills']} <b>Skills:</b> {skills_text}", self.styles['JobDetail']),
+                ""
+            ])
 
-        # Row 5: Job URL (full width)
-        url_text = f'{self.ICONS["link"]} <b>Apply:</b> <link href="{job.job_url}" color="blue"><u>{job.job_url[:60]}...</u></link>'
+        # Row: Description snippet (if available)
+        if job.description:
+            desc_snippet = job.description[:200] + "..." if len(job.description) > 200 else job.description
+            details.append([
+                Paragraph(f"📝 <b>Description:</b> <i>{desc_snippet}</i>", self.styles['JobDetail']),
+                ""
+            ])
+
+        # Row: Job URL (full width)
+        url_display = job.job_url[:70] + "..." if len(job.job_url) > 70 else job.job_url
+        url_text = f'{self.ICONS["link"]} <b>Apply:</b> <link href="{job.job_url}" color="blue"><u>{url_display}</u></link>'
         details.append([
             Paragraph(url_text, self.styles['JobDetail']),
             ""
@@ -607,35 +668,38 @@ class PDFExporter:
         # Create table with vibrant styling
         details_table = Table(details, colWidths=[3.25*inch, 3.25*inch])
 
+        # Count how many rows need spanning (skills, description, URL)
+        span_rows = []
+        for idx, row in enumerate(details):
+            if row[1] == "":
+                span_rows.append(idx)
+
         # Alternate row colors for visual appeal
         row_colors = [colors.white, colors.HexColor('#F0F8FF')]
 
-        details_table.setStyle(TableStyle([
-            # Header styling
-            ('BACKGROUND', (0, 0), (-1, 2), colors.HexColor('#E3F2FD')),
-
+        style_commands = [
             # Alternate row colors
             ('ROWBACKGROUNDS', (0, 0), (-1, -1), row_colors),
 
             # Border and padding
             ('BOX', (0, 0), (-1, -1), 2, self.COLORS['secondary']),
-            ('LINEABOVE', (0, 0), (-1, 0), 2, self.COLORS['secondary']),
-            ('INNERGRID', (0, 0), (-1, 2), 0.5, colors.HexColor('#BBDEFB')),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#BBDEFB')),
 
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('LEFTPADDING', (0, 0), (-1, -1), 10),
             ('RIGHTPADDING', (0, 0), (-1, -1), 10),
             ('TOPPADDING', (0, 0), (-1, -1), 8),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]
 
-            # Span for skills and URL rows
-            ('SPAN', (0, 3), (1, 3)),
-            ('SPAN', (0, 4), (1, 4)),
+        # Add span commands for full-width rows
+        for span_row in span_rows:
+            style_commands.append(('SPAN', (0, span_row), (1, span_row)))
+            # Alternate colors for spanned rows
+            if span_row % 2 == 0:
+                style_commands.append(('BACKGROUND', (0, span_row), (1, span_row), colors.HexColor('#FFF8E1')))
 
-            # Special background for skills row
-            ('BACKGROUND', (0, 3), (1, 3), colors.HexColor('#FFF8E1')),
-            ('BACKGROUND', (0, 4), (1, 4), colors.HexColor('#E8F5E9')),
-        ]))
+        details_table.setStyle(TableStyle(style_commands))
 
         elements.append(details_table)
 
