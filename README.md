@@ -35,6 +35,7 @@ A powerful, feature-rich Python tool to scrape LinkedIn job postings and generat
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
 - **[INSTALL.md](INSTALL.md)** - Detailed installation guide
+- **[SSL_FIX.md](SSL_FIX.md)** - Fix SSL certificate errors (macOS)
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common issues and solutions
 - **[API.md](docs/API.md)** - Programmatic usage
 - **[DOCKER.md](docs/DOCKER.md)** - Docker deployment
@@ -64,17 +65,25 @@ pip install -r requirements.txt
 python test_setup.py
 ```
 
-### ⚠️ Python 3.13+ Users
+### ⚠️ Common Issues
 
-If you get `ModuleNotFoundError: No module named 'distutils'`:
-
+**Python 3.13+ - `ModuleNotFoundError: No module named 'distutils'`:**
 ```bash
-# Install setuptools first (already in requirements.txt)
-pip install setuptools>=68.0.0
+pip install "setuptools>=68.0.0"
 pip install -r requirements.txt
 ```
 
-**See [INSTALL.md](INSTALL.md) for detailed installation instructions and troubleshooting.**
+**macOS - SSL Certificate Error:**
+```bash
+# Quick fix
+pip install --upgrade certifi
+export SSL_CERT_FILE=$(python -m certifi)
+
+# Or run the fix script
+python fix_ssl_certificates.py
+```
+
+**See [INSTALL.md](INSTALL.md) for detailed installation and [SSL_FIX.md](SSL_FIX.md) for SSL troubleshooting.**
 
 ## 🚀 Quick Start
 
@@ -329,9 +338,22 @@ linkedin-job-scrapper/
 #### ❌ `ModuleNotFoundError: No module named 'distutils'` (Python 3.13+)
 
 ```bash
-pip install setuptools>=68.0.0
+pip install "setuptools>=68.0.0"
 pip install -r requirements.txt
 ```
+
+#### ❌ SSL Certificate Error (macOS)
+
+```bash
+# Option 1: Run fix script
+python fix_ssl_certificates.py
+
+# Option 2: Manual fix
+pip install --upgrade certifi
+export SSL_CERT_FILE=$(python -m certifi)
+```
+
+See **[SSL_FIX.md](SSL_FIX.md)** for detailed SSL troubleshooting.
 
 #### ❌ ChromeDriver Not Found
 

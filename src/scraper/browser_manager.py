@@ -1,6 +1,8 @@
 """Browser management with Selenium and stealth mode."""
 
+import os
 import random
+import ssl
 import time
 from typing import Optional
 
@@ -14,6 +16,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from config.settings import settings
 from src.utils.logger import logger
+
+# Fix SSL certificate issues
+try:
+    import certifi
+    os.environ['SSL_CERT_FILE'] = certifi.where()
+    os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
+except ImportError:
+    logger.warning("certifi not installed, SSL verification may fail")
 
 
 class BrowserManager:
@@ -41,7 +51,33 @@ class BrowserManager:
 
         try:
             options = self._get_chrome_options()
-            self.driver = uc.Chrome(options=options, version_main=None)
+
+            # Try to start browser with SSL certificate verification
+            try:
+                self.driver = uc.Chrome(options=options, version_main=None)
+            except Exception as ssl_error:
+                # Check if it's an SSL certificate error
+                if 'SSL' in str(ssl_error) or 'CERTIFICATE' in str(ssl_error):
+                    logger.warning("SSL certificate error detected. Trying workaround...")
+                    logger.warning("To fix this permanently, run: python fix_ssl_certificates.py")
+
+                    # Try setting SSL context to unverified (not recommended but works)
+                    try:
+                        import ssl
+                        ssl._create_default_https_context = ssl._create_unverified_context
+                        self.driver = uc.Chrome(options=options, version_main=None)
+                        logger.warning("⚠️  Using unverified SSL context (not secure)")
+                    except Exception as retry_error:
+                        logger.error(f"Failed to start browser even with SSL workaround: {retry_error}")
+                        raise Exception(
+                            "SSL certificate verification failed. Please run:\n"
+                            "  python fix_ssl_certificates.py\n"
+                            "Or manually install certificates for Python:\n"
+                            "  pip install --upgrade certifi\n"
+                            f"Original error: {ssl_error}"
+                        )
+                else:
+                    raise
 
             # Set window size
             self.driver.set_window_size(

@@ -33,6 +33,7 @@ setup(
     python_requires='>=3.8',
     install_requires=[
         'setuptools>=68.0.0',  # Required for Python 3.12+
+        'certifi>=2023.0.0',  # SSL certificates
         'selenium>=4.15.0',
         'undetected-chromedriver>=3.5.5',
         'beautifulsoup4>=4.12.0',

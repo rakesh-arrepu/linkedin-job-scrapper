@@ -1,5 +1,6 @@
 # Python 3.13+ compatibility
 setuptools>=68.0.0
+certifi>=2023.0.0
 
 # Core Scraping
 selenium>=4.15.0
