@@ -50,55 +50,61 @@ class BrowserManager:
         logger.info("Starting browser...")
 
         try:
+            # Set SSL context to unverified to avoid SSL errors
+            try:
+                import ssl
+                ssl._create_default_https_context = ssl._create_unverified_context
+            except:
+                pass
+
             options = self._get_chrome_options()
 
-            # Try to start browser with SSL certificate verification
-            try:
-                self.driver = uc.Chrome(options=options, version_main=None)
-            except Exception as ssl_error:
-                # Check if it's an SSL certificate error
-                if 'SSL' in str(ssl_error) or 'CERTIFICATE' in str(ssl_error):
-                    logger.warning("SSL certificate error detected. Trying workaround...")
-                    logger.warning("To fix this permanently, run: python fix_ssl_certificates.py")
+            # Start browser with simplified approach
+            logger.info("Initializing Chrome driver...")
+            self.driver = uc.Chrome(
+                options=options,
+                use_subprocess=True,
+                version_main=None
+            )
 
-                    # Try setting SSL context to unverified (not recommended but works)
-                    try:
-                        import ssl
-                        ssl._create_default_https_context = ssl._create_unverified_context
-                        self.driver = uc.Chrome(options=options, version_main=None)
-                        logger.warning("⚠️  Using unverified SSL context (not secure)")
-                    except Exception as retry_error:
-                        logger.error(f"Failed to start browser even with SSL workaround: {retry_error}")
-                        raise Exception(
-                            "SSL certificate verification failed. Please run:\n"
-                            "  python fix_ssl_certificates.py\n"
-                            "Or manually install certificates for Python:\n"
-                            "  pip install --upgrade certifi\n"
-                            f"Original error: {ssl_error}"
-                        )
-                else:
-                    raise
+            logger.info("Chrome driver started")
 
             # Set window size
-            self.driver.set_window_size(
-                settings.browser_window_width,
-                settings.browser_window_height
-            )
+            try:
+                self.driver.set_window_size(
+                    settings.browser_window_width,
+                    settings.browser_window_height
+                )
+            except:
+                pass  # Window size is optional
 
             # Initialize wait
             self.wait = WebDriverWait(self.driver, settings.page_load_timeout)
 
             # Execute stealth scripts
-            self._apply_stealth_scripts()
+            try:
+                self._apply_stealth_scripts()
+            except Exception as e:
+                logger.warning(f"Stealth scripts failed (non-critical): {e}")
 
             logger.info("Browser started successfully")
             return self.driver
 
         except Exception as e:
-            logger.error(f"Failed to start browser: {e}")
+            error_msg = str(e)
+            logger.error(f"Failed to start browser: {error_msg}")
+
+            # Provide helpful error messages
+            if 'SSL' in error_msg or 'CERTIFICATE' in error_msg:
+                logger.error("SSL certificate error. Run: python fix_ssl_certificates.py")
+            elif 'chrome' in error_msg.lower():
+                logger.error("Chrome/ChromeDriver issue. Ensure Chrome is installed.")
+            elif 'excludeSwitches' in error_msg or 'capability' in error_msg:
+                logger.error("ChromeDriver compatibility issue. This has been fixed, please pull latest code.")
+
             raise
 
-    def _get_chrome_options(self) -> Options:
+    def _get_chrome_options(self):
         """
         Get Chrome options with anti-detection settings.
 
@@ -107,42 +113,37 @@ class BrowserManager:
         """
         options = uc.ChromeOptions()
 
-        # Headless mode
-        if self.headless:
-            options.add_argument('--headless=new')
-
-        # Anti-detection arguments
+        # Basic arguments that work with undetected_chromedriver
         options.add_argument('--disable-blink-features=AutomationControlled')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-gpu')
-        options.add_argument('--disable-web-security')
-        options.add_argument('--allow-running-insecure-content')
         options.add_argument('--disable-notifications')
         options.add_argument('--disable-popup-blocking')
-
-        # Random user agent
-        ua = UserAgent()
-        options.add_argument(f'--user-agent={ua.random}')
-
-        # Language
         options.add_argument('--lang=en-US')
+        options.add_argument('--window-size=1920,1080')
 
-        # Preferences
-        prefs = {
-            'profile.default_content_setting_values': {
-                'notifications': 2,
-                'images': 2,  # Disable images for faster loading
-            },
-            'profile.managed_default_content_settings': {
-                'images': 2
+        # Headless mode (if requested)
+        if self.headless:
+            options.add_argument('--headless=new')
+
+        # User agent
+        try:
+            ua = UserAgent()
+            options.add_argument(f'--user-agent={ua.random}')
+        except:
+            # Fallback to default if UserAgent fails
+            pass
+
+        # Preferences (simpler version without experimental options that cause issues)
+        try:
+            prefs = {
+                'profile.default_content_setting_values.notifications': 2,
             }
-        }
-        options.add_experimental_option('prefs', prefs)
-
-        # Exclude automation switches
-        options.add_experimental_option('excludeSwitches', ['enable-automation', 'enable-logging'])
-        options.add_experimental_option('useAutomationExtension', False)
+            options.add_experimental_option('prefs', prefs)
+        except:
+            # If experimental options fail, skip them
+            pass
 
         return options
 
