@@ -1,0 +1,8 @@
+# MCP (Model Context Protocol) Server Requirements
+# Install these for AI-assisted browser automation
+
+# Selenium MCP Server - Enables Claude/AI to control browsers
+selenium-mcp-server>=0.1.0
+
+# Include all base requirements
+-r requirements.txt

@@ -69,52 +69,47 @@ class LinkedInScraper:
             # Wait for job listings to load
             time.sleep(2)
 
-            # Scrape jobs across pages
+            # Scrape jobs with explicit back navigation workflow
             jobs_scraped = 0
-            page_num = 0
+            job_index = 0
+
+            logger.info("Using back navigation workflow for public LinkedIn job search")
 
             while jobs_scraped < search_params.max_jobs:
-                logger.info(f"Scraping page {page_num + 1}...")
-
-                # Scroll to load more jobs and handle popups
-                if page_num > 0 or jobs_scraped > 0:
-                    self._scroll_to_load_more_jobs()
-
-                # Get job cards on current page
+                # Re-find job cards to avoid stale element references
                 job_cards = self._get_job_cards()
 
                 if not job_cards:
-                    logger.warning("No job cards found on page")
+                    logger.warning("No job cards found")
                     break
 
-                # Process each job card - now clicking into each job for detailed data
-                for card_idx, card in enumerate(job_cards):
-                    if jobs_scraped >= search_params.max_jobs:
-                        break
+                # Check if we've processed all visible cards
+                if job_index >= len(job_cards):
+                    logger.info(f"Processed all {len(job_cards)} visible job cards")
+                    break
 
-                    try:
-                        # Click into the job to get detailed information
-                        job = self._click_and_extract_job(card, card_idx)
-                        if job:
-                            self.jobs.append(job)
-                            jobs_scraped += 1
-                            logger.info(f"Scraped job {jobs_scraped}/{search_params.max_jobs}: {job.title} at {job.company}")
+                try:
+                    # Get the job card at current index
+                    logger.info(f"Processing job {job_index + 1}/{len(job_cards)} (Total scraped: {jobs_scraped}/{search_params.max_jobs})")
 
-                        # Rate limiting
-                        self.rate_limiter.wait()
+                    # Click and extract with back navigation
+                    job = self._click_extract_and_return(job_index)
 
-                    except Exception as e:
-                        logger.error(f"Error extracting job: {e}")
-                        continue
+                    if job:
+                        self.jobs.append(job)
+                        jobs_scraped += 1
+                        logger.info(f"✅ Scraped job {jobs_scraped}/{search_params.max_jobs}: {job.title} at {job.company}")
 
-                # Check if we need to go to next page
-                if jobs_scraped < search_params.max_jobs:
-                    if not self._go_to_next_page():
-                        logger.info("No more pages available")
-                        break
+                    # Move to next job
+                    job_index += 1
 
-                    page_num += 1
-                    time.sleep(2)
+                    # Rate limiting
+                    self.rate_limiter.wait()
+
+                except Exception as e:
+                    logger.error(f"Error processing job {job_index}: {e}")
+                    job_index += 1
+                    continue
 
             logger.info(f"Scraping complete! Total jobs scraped: {len(self.jobs)}")
             return self.jobs
@@ -285,6 +280,108 @@ class LinkedInScraper:
         except Exception as e:
             logger.error(f"Error clicking and extracting job {card_idx}: {e}")
             return None
+
+    def _click_extract_and_return(self, job_index: int) -> Optional[Job]:
+        """
+        Click job card, extract details from detail page, then navigate back.
+
+        This implements the explicit back navigation workflow for LinkedIn's
+        public job search (which doesn't have a two-panel interface).
+
+        Args:
+            job_index: Index of the job card to process
+
+        Returns:
+            Job object with detailed information or None
+        """
+        try:
+            # Step 1: Re-find job cards to avoid stale elements
+            job_card_selector = "ul.jobs-search__results-list > li, div.jobs-search-results__list-item"
+            job_cards = self.browser.driver.find_elements(By.CSS_SELECTOR, job_card_selector)
+
+            if job_index >= len(job_cards):
+                logger.warning(f"Job index {job_index} out of range (only {len(job_cards)} cards)")
+                return None
+
+            card = job_cards[job_index]
+
+            # Step 2: Scroll card into view
+            self.browser.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", card)
+            time.sleep(0.5)
+
+            # Step 3: Extract job URL from card (for logging)
+            job_url = None
+            try:
+                link_elem = card.find_element(By.CSS_SELECTOR, 'a[href*="/jobs/view/"]')
+                job_url = link_elem.get_attribute('href')
+                if not job_url.startswith('http'):
+                    job_url = f"https://www.linkedin.com{job_url}"
+            except:
+                logger.warning(f"Could not extract job URL from card {job_index}")
+
+            # Step 4: Click card to navigate to job detail page
+            logger.debug(f"Clicking job card {job_index} to navigate to detail page")
+            card.click()
+            time.sleep(3)  # Wait for navigation and page load
+
+            # Step 5: Handle any popups on detail page
+            self._handle_popups()
+
+            # Step 6: Click "See More" to expand full job description
+            self._expand_job_description()
+
+            # Step 7: Extract detailed job information from detail page
+            job = self._extract_detailed_job_data(job_url or self.browser.driver.current_url)
+
+            # Step 8: Navigate BACK to job search results
+            logger.debug("Navigating back to job list")
+            self.browser.driver.back()
+            time.sleep(2)  # Wait for job list to reload
+
+            # Step 9: Handle popups again on search page
+            self._handle_popups()
+
+            return job
+
+        except Exception as e:
+            logger.error(f"Error in click-extract-return workflow for job {job_index}: {e}")
+            # Try to recover by going back
+            try:
+                self.browser.driver.back()
+                time.sleep(2)
+            except:
+                pass
+            return None
+
+    def _expand_job_description(self):
+        """Click 'See More' button to expand full job description."""
+        try:
+            see_more_selectors = [
+                'button.show-more-less-html__button--more',
+                'button.show-more-less-html__button',
+                'button[aria-label*="Show more"]',
+                'button[aria-label*="how more"]'
+            ]
+
+            for selector in see_more_selectors:
+                try:
+                    buttons = self.browser.driver.find_elements(By.CSS_SELECTOR, selector)
+                    for btn in buttons:
+                        if btn.is_displayed() and 'more' in btn.text.lower():
+                            logger.debug("Clicking 'See More' button to expand description")
+                            self.browser.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
+                            time.sleep(0.5)
+                            btn.click()
+                            time.sleep(1.5)
+                            logger.debug("Description expanded")
+                            return
+                except:
+                    continue
+
+            logger.debug("'See More' button not found - description may already be fully visible")
+
+        except Exception as e:
+            logger.debug(f"Could not expand description (non-critical): {e}")
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _extract_job_from_card(self, card) -> Optional[Job]:

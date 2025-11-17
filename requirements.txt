@@ -33,3 +33,8 @@ tenacity>=8.2.0
 
 # Date handling
 python-dateutil>=2.8.2
+
+# Optional: MCP Server for AI-driven browser automation
+# Install with: pip install selenium-mcp-server
+# Enables AI assistants like Claude to control the browser
+# selenium-mcp-server>=0.1.0
